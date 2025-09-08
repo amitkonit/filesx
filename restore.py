@@ -1,4 +1,4 @@
-import os, sqlite3, zipfile
+import os, sqlite3, zipfile, asyncio
 from pyrogram import Client
 
 api_id = int(os.environ["TG_API_ID"])
@@ -15,15 +15,13 @@ BROWSER_PATHS = [
     os.path.expandvars(r"%APPDATA%\Mozilla\Firefox\Profiles")
 ]
 
-def download_files():
-    with Client("bot", api_id, api_hash, bot_token=bot_token) as app:
-        msgs = app.get_history(chat_id, limit=20)
-        for m in msgs:
-            if m.document:
-                if m.document.file_name == STORE_DB:
-                    app.download_media(m, STORE_DB)
-                elif m.document.file_name == BACKUP_ZIP:
-                    app.download_media(m, BACKUP_ZIP)
+async def download_files(app: Client):
+    async for m in app.get_chat_history(chat_id, limit=20):
+        if m.document:
+            if m.document.file_name == STORE_DB:
+                await app.download_media(m, file_name=STORE_DB)
+            elif m.document.file_name == BACKUP_ZIP:
+                await app.download_media(m, file_name=BACKUP_ZIP)
 
 def restore_data():
     if not os.path.exists(BACKUP_ZIP):
@@ -31,8 +29,10 @@ def restore_data():
     with zipfile.ZipFile(BACKUP_ZIP, 'r') as zipf:
         zipf.extractall(os.path.expandvars(r"%LOCALAPPDATA%"))
 
-def main():
-    download_files()
+async def main():
+    async with Client("bot", api_id, api_hash, bot_token=bot_token) as app:
+        await download_files(app)
+
     if os.path.exists(STORE_DB):
         conn = sqlite3.connect(STORE_DB)
         cur = conn.cursor()
@@ -43,4 +43,4 @@ def main():
             restore_data()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
